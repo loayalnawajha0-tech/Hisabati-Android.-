@@ -3,13 +3,11 @@ name: Build Hisabati Android APK
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
 jobs:
   build:
-    name: Build Android APK
     runs-on: ubuntu-latest
 
     steps:
@@ -27,24 +25,28 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Build Hisabati APK
+      - name: Locate Android project
         run: |
-          if [ -f settings.gradle.kts ]; then
-            gradle assembleDebug
-          elif [ -f HisabatiAndroid_Updated/settings.gradle.kts ]; then
-            cd HisabatiAndroid_Updated
-            gradle assembleDebug
-          else
-            echo "Android project folder not found!"
-            find . -name settings.gradle.kts
+          SETTINGS=$(find . -type f \( -name settings.gradle.kts -o -name settings.gradle \) -print -quit)
+
+          if [ -z "$SETTINGS" ]; then
+            echo "ERROR: Android project not found"
+            find . -maxdepth 4 -type f
             exit 1
           fi
+
+          PROJECT_DIR=$(dirname "$SETTINGS")
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Found project at: $PROJECT_DIR"
+
+      - name: Build APK
+        run: |
+          cd "$PROJECT_DIR"
+          gradle assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Hisabati-APK
-          path: |
-            **/build/outputs/apk/debug/*.apk
+          path: '**/build/outputs/apk/debug/*.apk'
           if-no-files-found: error
-          retention-days: 14
