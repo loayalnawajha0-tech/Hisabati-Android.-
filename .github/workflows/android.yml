@@ -1,4 +1,5 @@
 
+
 name: Build Bastati Android APK
 
 on:
@@ -11,6 +12,7 @@ permissions:
 
 jobs:
   build:
+    name: Build Bastati
     runs-on: ubuntu-latest
 
     steps:
@@ -23,28 +25,32 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Extract Bastati Project
+      - name: Extract Bastati UI Refresh
         run: |
-          ZIP_FILE=$(find . -maxdepth 2 -iname "Bastati-Android.zip" | head -n 1)
+          ZIP_FILE=$(find . -maxdepth 2 \
+            -name "Bastati-Android-UI-Refresh.zip" \
+            -print -quit)
 
           if [ -z "$ZIP_FILE" ]; then
-            echo "Bastati ZIP file not found!"
+            echo "ERROR: Bastati ZIP not found!"
             exit 1
           fi
 
           mkdir -p extracted
           unzip -o "$ZIP_FILE" -d extracted
 
-          PROJECT_DIR=$(find extracted -name settings.gradle.kts -printf '%h\n' | head -n 1)
+          PROJECT_DIR=$(find extracted \
+            -name settings.gradle.kts \
+            -printf '%h\n' | head -n 1)
 
           if [ -z "$PROJECT_DIR" ]; then
-            echo "Gradle project not found inside ZIP!"
+            echo "ERROR: Gradle project not found!"
             find extracted -maxdepth 4 -type f
             exit 1
           fi
 
-          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
-          echo "Found project: $PROJECT_DIR"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Project found: $PROJECT_DIR"
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -54,10 +60,10 @@ jobs:
       - name: Build APK
         run: gradle -p "$PROJECT_DIR" assembleDebug
 
-      - name: Upload APK
+      - name: Upload Bastati APK
         uses: actions/upload-artifact@v4
         with:
-          name: Bastati-APK
+          name: Bastati-Android-UI-Refresh
           path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           
