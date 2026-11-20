@@ -1,6 +1,4 @@
 
-
-
 name: Build Bastati Flutter APK
 
 on:
@@ -15,27 +13,33 @@ permissions:
 
 jobs:
   build:
-    name: Build Android APK
+    name: Build Bastati Android
     runs-on: ubuntu-latest
 
     steps:
+      # 1. تحميل ملفات المستودع
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Find and extract Flutter project ZIP
+      # 2. استخراج مشروع Flutter إذا كان مضغوطاً
+      - name: Extract Flutter project
         shell: bash
         run: |
-          ZIP_FILE=$(find . -maxdepth 4 -name "Bastati-Flutter-Project.zip" -print -quit)
+          ZIP_FILE=$(find . -maxdepth 4 \
+            -name "Bastati-Flutter-Project.zip" \
+            -print -quit)
 
           if [ -n "$ZIP_FILE" ]; then
-            echo "Found project: $ZIP_FILE"
+            echo "Extracting: $ZIP_FILE"
+
             mkdir -p extracted
             unzip -o "$ZIP_FILE" -d extracted
 
-            PUBSPEC=$(find extracted -name pubspec.yaml -print -quit)
+            PUBSPEC=$(find extracted \
+              -name pubspec.yaml -print -quit)
 
             if [ -z "$PUBSPEC" ]; then
-              echo "ERROR: pubspec.yaml not found in ZIP"
+              echo "ERROR: pubspec.yaml not found"
               exit 1
             fi
 
@@ -44,41 +48,59 @@ jobs:
           fi
 
           if [ ! -f pubspec.yaml ]; then
-            echo "ERROR: Flutter pubspec.yaml not found"
+            echo "ERROR: Flutter project not found"
             exit 1
           fi
 
+      # 3. إعداد Java
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
+      # 4. إعداد Flutter
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
           cache: true
 
-      - name: Generate Android platform if missing
+      # 5. إنشاء ملفات Android إذا لم تكن موجودة
+      - name: Generate Android platform
         run: |
           if [ ! -d android ]; then
-            flutter create --platforms=android --org com.loay.bastati .
+            flutter create \
+              --platforms=android \
+              --org com.loay.bastati .
           fi
 
+      # 6. إصلاح إصدار intl
+      - name: Fix intl dependency
+        run: flutter pub add intl:^0.20.3
+
+      # 7. تثبيت المكتبات
       - name: Install dependencies
         run: flutter pub get
 
+      # 8. فحص المشروع
+      - name: Analyze Flutter project
+        run: flutter analyze
+
+      # 9. تشغيل الاختبارات
       - name: Run tests
         run: flutter test
 
+      # 10. بناء APK
       - name: Build Release APK
         run: flutter build apk --release
 
+      # 11. رفع التطبيق
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Bastati-Flutter-APK
+          name: Bastati-Android-APK
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
+          retention-days: 30
           
