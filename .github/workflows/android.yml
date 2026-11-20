@@ -1,10 +1,13 @@
 
 
-name: Build Bastati Android APK
+
+name: Build Bastati Flutter APK
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - master
   workflow_dispatch:
 
 permissions:
@@ -12,58 +15,70 @@ permissions:
 
 jobs:
   build:
-    name: Build Bastati
+    name: Build Android APK
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup JDK 17
+      - name: Find and extract Flutter project ZIP
+        shell: bash
+        run: |
+          ZIP_FILE=$(find . -maxdepth 4 -name "Bastati-Flutter-Project.zip" -print -quit)
+
+          if [ -n "$ZIP_FILE" ]; then
+            echo "Found project: $ZIP_FILE"
+            mkdir -p extracted
+            unzip -o "$ZIP_FILE" -d extracted
+
+            PUBSPEC=$(find extracted -name pubspec.yaml -print -quit)
+
+            if [ -z "$PUBSPEC" ]; then
+              echo "ERROR: pubspec.yaml not found in ZIP"
+              exit 1
+            fi
+
+            PROJECT_DIR=$(dirname "$PUBSPEC")
+            cp -a "$PROJECT_DIR"/. .
+          fi
+
+          if [ ! -f pubspec.yaml ]; then
+            echo "ERROR: Flutter pubspec.yaml not found"
+            exit 1
+          fi
+
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
-      - name: Extract Bastati UI Refresh
-        run: |
-          ZIP_FILE=$(find . -maxdepth 2 \
-            -name "Bastati-Android-UI-Refresh.zip" \
-            -print -quit)
-
-          if [ -z "$ZIP_FILE" ]; then
-            echo "ERROR: Bastati ZIP not found!"
-            exit 1
-          fi
-
-          mkdir -p extracted
-          unzip -o "$ZIP_FILE" -d extracted
-
-          PROJECT_DIR=$(find extracted \
-            -name settings.gradle.kts \
-            -printf '%h\n' | head -n 1)
-
-          if [ -z "$PROJECT_DIR" ]; then
-            echo "ERROR: Gradle project not found!"
-            find extracted -maxdepth 4 -type f
-            exit 1
-          fi
-
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          echo "Project found: $PROJECT_DIR"
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
-          gradle-version: '8.9'
+          channel: stable
+          cache: true
 
-      - name: Build APK
-        run: gradle -p "$PROJECT_DIR" assembleDebug
+      - name: Generate Android platform if missing
+        run: |
+          if [ ! -d android ]; then
+            flutter create --platforms=android --org com.loay.bastati .
+          fi
 
-      - name: Upload Bastati APK
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run tests
+        run: flutter test
+
+      - name: Build Release APK
+        run: flutter build apk --release
+
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Bastati-Android-UI-Refresh
-          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk
+          name: Bastati-Flutter-APK
+          path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
           
